@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Risk Trend Graphs</title>
+    <!-- PWA & Offline Support -->
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#6C2BF2" />
+    <script src="/offline-store.js"></script>
+    <script src="/frontend/i18n/i18n.js"></script>
+
+    <!-- Use a fixed, standard version of Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: 'Inter', sans-serif;
+            background: #0D0716;
+            color: #EDEAFB;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        .back-btn {
+            background: #6C2BF2;
+            color: white;
+            padding: 10px 20px;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 500;
+            display: inline-block;
+            margin-bottom: 20px;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            border-radius: 16px;
+            padding: 20px;
+        }
+
+        h2 {
+            margin-top: 0;
+        }
+
+        /* Container for canvas to handle responsive resizing properly */
+        .chart-container {
+            position: relative;
+            height: 300px;
+            width: 100%;
+        }
+
+        @media(max-width: 768px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        #debug-log {
+            color: #ff6b6b;
+            font-family: monospace;
+            margin-bottom: 20px;
+            display: none;
+            padding: 10px;
+            background: rgba(255, 0, 0, 0.1);
+            border-radius: 8px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
+            <a href="frontend.html" class="back-btn" data-i18n="map.back_home" style="margin-bottom:0;">← Back to Home</a>
+            <div id="ctas-language-selector"></div>
+        </div>
+        <h1 data-i18n="trends.title">Risk Trend Analysis (Real-Time)</h1>
+        <p style="color:#aaa; margin-bottom: 30px;" data-i18n="trends.subtitle">Live data fetched from Open-Meteo & USGS for coastal India.</p>
+
+        <div id="debug-log"></div>
+
+        <div class="grid">
+            <div class="card">
+                <h2 data-i18n="trends.flood_title">Flood Risk (Wave Height)</h2>
+                <div class="chart-container">
+                    <canvas id="floodChart"></canvas>
+                </div>
+            </div>
+            <div class="card">
+                <h2 data-i18n="trends.storm_title">Storm Risk (Wind Speed)</h2>
+                <div class="chart-container">
+                    <canvas id="stormChart"></canvas>
+                </div>
+            </div>
+            <div class="card">
+                <h2 data-i18n="trends.tsunami_title">Tsunami Risk (Seismic Activity)</h2>
+                <div class="chart-container">
+                    <canvas id="tsunamiChart"></canvas>
+                </div>
+            </div>
+            <div class="card">
+                <h2 data-i18n="trends.pollution_title">Risk Distribution (Community Reports)</h2>
+                <div class="chart-container">
+                    <canvas id="reportsChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = window.location.origin;
+
+        function logError(msg) {
+            const el = document.getElementById('debug-log');
+            if (el) {
+                el.style.display = 'block';
+                el.innerText += "Error: " + msg + "\n";
+            }
+            console.error(msg);
+        }
+
+        const commonOptions = {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    grid: { color: 'rgba(255,255,255,0.05)' },
+                    ticks: { color: '#bbb' }
+                },
+                x: {
+                    grid: { color: 'rgba(255,255,255,0.05)' },
+                    ticks: { color: '#bbb' }
+                }
+            },
+            plugins: {
+                legend: { labels: { color: '#fff' } }
+            }
+        };
+
+        async function initCharts() {
+            try {
+                // Check if Chart.js loaded
+                if (typeof Chart === 'undefined') {
+                    throw new Error("Chart.js library not loaded. Please indicate to the user to check their internet connection for the CDN.");
+                }
+
+                const res = await fetch(`${API_URL}/trends/data`);
+                if (!res.ok) throw new Error(`API Error: ${res.status}`);
+
+                const data = await res.json();
+
+                // Helper
+                const initChart = (id, config) => {
+                    const el = document.getElementById(id);
+                    if (el) new Chart(el, config);
+                };
+
+                // 1. Flood Risk
+                initChart('floodChart', {
+                    type: 'line',
+                    data: {
+                        labels: data.dates,
+                        datasets: [{
+                            label: 'Max Wave Height (m)',
+                            data: data.flood_risk,
+                            borderColor: '#00CC66',
+                            backgroundColor: 'rgba(0, 204, 102, 0.2)',
+                            fill: true,
+                            tension: 0.4
+                        }]
+                    },
+                    options: commonOptions
+                });
+
+                // 2. Storm Risk
+                initChart('stormChart', {
+                    type: 'bar',
+                    data: {
+                        labels: data.dates,
+                        datasets: [{
+                            label: 'Max Wind Speed (km/h)',
+                            data: data.storm_risk,
+                            backgroundColor: '#FF4444',
+                            borderRadius: 6
+                        }]
+                    },
+                    options: commonOptions
+                });
+
+                // 3. Tsunami Risk
+                initChart('tsunamiChart', {
+                    type: 'line',
+                    data: {
+                        labels: data.dates,
+                        datasets: [{
+                            label: 'Max Magnitude (Richter)',
+                            data: data.tsunami_risk,
+                            borderColor: '#E2B714',
+                            backgroundColor: 'rgba(226, 183, 20, 0.2)',
+                            fill: true,
+                            tension: 0.2,
+                            pointRadius: 6
+                        }]
+                    },
+                    options: {
+                        ...commonOptions,
+                        scales: {
+                            ...commonOptions.scales,
+                            y: {
+                                grid: { color: 'rgba(255,255,255,0.05)' },
+                                ticks: { color: '#bbb' },
+                                min: 0,
+                                max: 10
+                            }
+                        }
+                    }
+                });
+
+                // 4. Reports
+                initChart('reportsChart', {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['Flood', 'Storm', 'Tsunami', 'Other'],
+                        datasets: [{
+                            data: [12, 8, 3, 5],
+                            backgroundColor: ['#00CC66', '#FF4444', '#E2B714', '#6C2BF2'],
+                            borderWidth: 0
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { labels: { color: '#fff' } } }
+                    }
+                });
+
+            } catch (e) {
+                logError(e.message);
+            }
+        }
+
+        window.onload = initCharts;
+    </script>
+</body>
+
+</html>

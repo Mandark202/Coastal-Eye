@@ -1,0 +1,1026 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CTAS — Coastal Threat & Evacuation Map</title>
+    <!-- PWA Manifest & Meta Tags -->
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#6C2BF2" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="CTAS" />
+    <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+    <link rel="icon" type="image/svg+xml" href="/icons/icon.svg" />
+    <script src="/offline-store.js"></script>
+    <script src="/frontend/i18n/i18n.js"></script>
+
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', sans-serif;
+            background: #0D0716;
+            color: #EDEAFB;
+        }
+
+        #map {
+            height: 100vh;
+            width: 100%;
+        }
+
+        .back-btn {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 1000;
+            background: #6C2BF2;
+            color: white;
+            padding: 10px 20px;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 500;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+
+        .legend {
+            position: absolute;
+            bottom: 30px;
+            right: 20px;
+            z-index: 1000;
+            background: rgba(13, 7, 22, 0.9);
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 5px;
+        }
+
+        .dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+
+        .red {
+            background: #FF4444;
+        }
+
+        .orange {
+            background: #FFAA00;
+        }
+
+        .green {
+            background: #00CC66;
+        }
+
+        /* Light popup styles */
+        .leaflet-popup-content-wrapper {
+            background: #fff;
+            color: #333;
+        }
+
+        .leaflet-popup-tip {
+            background: #fff;
+        }
+
+        .ai-controls {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+        }
+
+        .evac-panel {
+            position: absolute;
+            top: 80px;
+            right: 20px;
+            z-index: 1000;
+            background: rgba(13, 7, 22, 0.9);
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid rgba(108, 43, 242, 0.5);
+            width: 280px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+        }
+
+        .evac-panel h3 { margin: 0 0 10px 0; color: #6C2BF2; }
+        .evac-panel p { margin: 0 0 15px 0; font-size: 0.9rem; color: #ccc; }
+        .evac-panel input { 
+            background: rgba(255,255,255,0.1); 
+            border: 1px solid rgba(255,255,255,0.2); 
+            color: #fff; 
+            padding: 8px; 
+            border-radius: 6px; 
+        }
+
+        .ai-btn {
+            background: linear-gradient(90deg, #6C2BF2, #4b1ba8);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 0 15px rgba(108, 43, 242, 0.4);
+            transition: all 0.3s ease;
+        }
+        .ai-btn:hover {
+            box-shadow: 0 0 25px rgba(108, 43, 242, 0.8);
+            transform: scale(1.05);
+        }
+
+        /* Glowing Animated Risk Circles */
+        .risk-circle {
+            background: rgba(255, 68, 68, 0.4);
+            border: 2px solid #FF4444;
+            border-radius: 50%;
+            animation: pulse-red 2s infinite;
+        }
+
+        @keyframes pulse-red {
+            0% {
+                transform: scale(0.95);
+                box-shadow: 0 0 0 0 rgba(255, 68, 68, 0.7);
+            }
+            70% {
+                transform: scale(1.2);
+                box-shadow: 0 0 0 20px rgba(255, 68, 68, 0);
+            }
+            100% {
+                transform: scale(0.95);
+                box-shadow: 0 0 0 0 rgba(255, 68, 68, 0);
+            }
+        }
+
+        .risk-label {
+            background: rgba(13, 7, 22, 0.8);
+            backdrop-filter: blur(4px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: white;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: bold;
+            white-space: nowrap;
+        }
+
+        /* Pick Mode Styles */
+        .picking-active {
+            cursor: crosshair !important;
+        }
+        .pick-btn {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            transition: all 0.2s;
+        }
+        .pick-btn.active {
+            background: #6C2BF2;
+            border-color: #6C2BF2;
+        }
+
+        /* Route Stats Card */
+        .route-stats {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            padding: 12px;
+            margin-top: 15px;
+            border-left: 4px solid #6C2BF2;
+        }
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+            font-size: 0.85rem;
+        }
+        .stat-label { color: #aaa; }
+        .stat-value { font-weight: 600; }
+    </style>
+</head>
+
+<body>
+    <div style="position: absolute; top: 20px; left: 20px; z-index: 1000; display: flex; align-items: center; gap: 10px;">
+        <a href="frontend.html" class="back-btn" style="position: static;" data-i18n="map.back_home">← Back to Home</a>
+        <button id="btnEmergencyContacts" class="back-btn" style="position: static; background: #E2B714; color: #0D0716; font-weight: 600; cursor: pointer; border: none;" onclick="openEmergencyContactsModal()" data-i18n="map.emergency_btn">🆘 Emergency Helplines</button>
+        <div id="ctas-language-selector" style="display:inline-flex;"></div>
+    </div>
+    <div id="map"></div>
+
+    <div class="legend">
+        <div class="legend-item"><span class="dot red"></span> <span data-i18n="map.legend_high">High Risk (Cyclone/Swell)</span></div>
+        <div class="legend-item"><span class="dot orange"></span> <span data-i18n="map.legend_moderate">Moderate Risk (Pollution)</span></div>
+        <div class="legend-item"><span class="dot green"></span> <span data-i18n="map.legend_safe">Safe Zone</span></div>
+        <div class="legend-item"><span style="font-size:12px;">🏥</span> <span>Hospitals (Live Beds)</span></div>
+        <div class="legend-item"><span style="font-size:12px;">🏕️</span> <span>Cyclone Shelters</span></div>
+    </div>
+
+    <div class="ai-controls">
+        <button id="toggleHeatmapBtn" class="ai-btn" onclick="toggleAIHeatmap()" data-i18n="map.toggle_heatmap">🤖 Toggle AI Prediction Heatmap</button>
+        <button id="toggleFacilitiesBtn" class="ai-btn" onclick="toggleFacilitiesLayer()" style="background:linear-gradient(90deg, #00CC66, #009944); margin-top:8px;">🏥 Toggle Hospitals & Shelters</button>
+    </div>
+
+    <!-- Offline Emergency Helplines Modal -->
+    <div id="emergencyModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.75); z-index:10000; align-items:center; justify-content:center; padding:20px; backdrop-filter:blur(8px);">
+        <div style="background:#130b20; border:1px solid #6C2BF2; border-radius:16px; width:100%; max-width:480px; padding:24px; color:#EDEAFB; box-shadow:0 20px 60px rgba(0,0,0,0.8);">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; border-bottom:1px solid rgba(255,255,255,0.1); padding-bottom:12px;">
+                <h3 style="margin:0; color:#E2B714; display:flex; align-items:center; gap:8px;" data-i18n="map.modal_title">
+                    <span>🆘</span> Coastal Emergency Contacts
+                </h3>
+                <button onclick="closeEmergencyContactsModal()" style="background:none; border:none; color:#ccc; font-size:24px; cursor:pointer;">&times;</button>
+            </div>
+            <p style="font-size:0.85rem; color:#aaa; margin-top:0;" data-i18n="map.modal_desc">Pre-cached emergency lines for offline maritime and coastal safety:</p>
+            <div id="emergencyList" style="display:flex; flex-direction:column; gap:10px; max-height:320px; overflow-y:auto; padding-right:6px;">
+                <!-- Filled dynamically by offline-store -->
+            </div>
+            <button onclick="closeEmergencyContactsModal()" style="margin-top:20px; width:100%; background:#6C2BF2; color:white; border:none; padding:10px; border-radius:8px; font-weight:600; cursor:pointer;" data-i18n="map.modal_close">Close</button>
+        </div>
+    </div>
+
+    <div class="evac-panel">
+        <h3 data-i18n="map.evac_title">🧭 AI Evacuation Route</h3>
+        <p data-i18n="map.evac_desc">Select origin and destination to calculate the safest survival path.</p>
+        
+        <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:12px;">
+            <div style="display:flex; gap:5px; align-items:center;">
+                <input type="text" id="evacStart" placeholder="Start (Lat, Lng)" data-i18n-placeholder="map.start_placeholder" style="flex:1; font-size:0.8rem;">
+                <button class="pick-btn" id="btnPickStart" onclick="startPicking('start')">📍</button>
+            </div>
+            <div style="display:flex; gap:5px; align-items:center;">
+                <input type="text" id="evacEnd" placeholder="End (Lat, Lng)" data-i18n-placeholder="map.end_placeholder" style="flex:1; font-size:0.8rem;">
+                <button class="pick-btn" id="btnPickEnd" onclick="startPicking('end')">🏁</button>
+            </div>
+        </div>
+
+        <button class="ai-btn" id="genRouteBtn" onclick="generateEvacRoute()" style="width:100%" data-i18n="map.analyze_btn">Analyze & Generate Route</button>
+        <button class="pick-btn" onclick="clearEvacRoute()" style="width:100%; margin-top:8px;" data-i18n="map.clear_btn">Clear Route</button>
+
+        <div id="evacResult" style="display: none;">
+            <div class="route-stats" id="statsCard">
+                <div class="stat-row">
+                    <span class="stat-label" data-i18n="map.total_dist">Total Distance</span>
+                    <span class="stat-value" id="evacDist">--</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label" data-i18n="map.est_time">Estimated Time</span>
+                    <span class="stat-value" id="evacTime">--</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label" data-i18n="map.safety_rating">Safety Rating</span>
+                    <span class="stat-value" id="evacRisk">--</span>
+                </div>
+                <div style="margin-top:8px; font-size:0.75rem; color:#888; text-align:center;">
+                    AI routing avoids high-risk storm & flood zones.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Leaflet & Heatmap Scripts -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
+
+    <script>
+        const API_URL = window.location.origin;
+
+        // Register PWA Service Worker
+        if (window.CTASOffline) {
+            CTASOffline.registerServiceWorker();
+        }
+
+        // 1. Initialize Map
+        const map = L.map('map').setView([20.5937, 78.9629], 5); // Default center on India
+
+        // 2. Add Tile Layer (OpenStreetMap) - Cached dynamically by Service Worker
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; OpenStreetMap contributors',
+            maxZoom: 19
+        }).addTo(map);
+
+        // Fetch Heatmap Data from Backend (Relative URL with offline tolerance)
+        fetch(`${API_URL}/heatmap`)
+            .then(res => res.json())
+            .then(heatPoints => {
+                L.heatLayer(heatPoints, {
+                    radius: 20,
+                    blur: 15,
+                    maxZoom: 18,
+                    minOpacity: 0.3,
+                    gradient: { 0.2: 'blue', 0.4: 'cyan', 0.6: 'lime', 0.8: 'yellow', 1.0: 'red' }
+                }).addTo(map);
+            })
+            .catch(err => console.warn("Heatmap data unavailable (possibly offline)", err.message));
+
+        // 3. Add Legend (Keep your existing legend logic if needed)
+
+        // ---------------------------------------------------------
+        // NEW FEATURE: CLICK TO GET REAL-TIME WIND & WEATHER
+        // ---------------------------------------------------------
+
+        // Helper to get wind direction arrow
+        function getWindArrow(degree) {
+            // Rotate an arrow emoji based on degrees
+            const arrows = ['↑', '↗', '→', '↘', '↓', '↙', '←', '↖'];
+            const index = Math.round(degree / 45) % 8;
+            return arrows[index];
+        }
+
+        // Helper to decode WMO Weather Codes
+        function getWeatherDesc(code) {
+            const codes = {
+                0: 'Clear sky ☀️', 1: 'Mainly clear 🌤', 2: 'Partly cloudy ⛅', 3: 'Overcast ☁️',
+                45: 'Fog 🌫', 48: 'Depositing rime fog 🌫',
+                51: 'Light Drizzle 🌧', 53: 'Moderate Drizzle 🌧', 55: 'Dense Drizzle 🌧',
+                61: 'Slight Rain ☔', 63: 'Moderate Rain ☔', 65: 'Heavy Rain ⛈',
+                80: 'Rain Showers 🌦', 81: 'Moderate Showers 🌦', 82: 'Violent Showers ⛈',
+                95: 'Thunderstorm ⚡', 96: 'Thunderstorm with Hail ⛈', 99: 'Heavy Hail ⛈'
+            };
+            return codes[code] || 'Unknown';
+        }
+
+        // Event Listener: Click on Map
+        map.on('click', async function (e) {
+            const { lat, lng } = e.latlng;
+
+            // 1. Show a "Loading..." popup immediately so user knows it's working
+            const popup = L.popup()
+                .setLatLng(e.latlng)
+                .setContent(`
+                <div style="text-align:center; padding: 10px; color: #333;">
+                    <div class="loader" style="border: 3px solid #f3f3f3; border-top: 3px solid #6C2BF2; border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite; margin: 0 auto 10px;"></div>
+                    Fetching real-time wind data...
+                </div>
+                <style>@keyframes spin {0% {transform: rotate(0deg);} 100% {transform: rotate(360deg);}}</style>
+            `)
+                .openOn(map);
+
+            try {
+                // 2. Fetch Data from Open-Meteo (Free, No Key required)
+                // We request: temperature, windspeed, winddirection, weathercode
+                const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current_weather=true`;
+
+                const response = await fetch(url);
+                const data = await response.json();
+
+                if (data.current_weather) {
+                    const cw = data.current_weather;
+                    const windDirArrow = getWindArrow(cw.winddirection);
+                    const desc = getWeatherDesc(cw.weathercode);
+
+                    // 3. Update Popup with Styled Content
+                    popup.setContent(`
+                    <div style="min-width: 220px; font-family: 'Inter', sans-serif; color: #333;">
+                        <div style="background: #6C2BF2; color: white; padding: 8px 12px; border-radius: 6px 6px 0 0; margin: -1px -1px 10px -1px;">
+                            <h4 style="margin:0; font-size: 0.95rem;">Live Weather Analysis</h4>
+                        </div>
+                        
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding: 0 5px;">
+                            <div style="text-align: center;">
+                                <div style="font-size: 2rem; font-weight: 700; color: #6C2BF2;">
+                                    ${cw.windspeed}
+                                </div>
+                                <div style="font-size: 0.75rem; color: #666; text-transform: uppercase; font-weight: 600;">
+                                    Wind (km/h)
+                                </div>
+                            </div>
+                            <div style="text-align: center; border-left: 1px solid #eee; padding-left: 15px;">
+                                <div style="font-size: 1.5rem; color: #333;">
+                                    ${windDirArrow}
+                                </div>
+                                <div style="font-size: 0.75rem; color: #666; font-weight: 600;">
+                                    ${cw.winddirection}°
+                                </div>
+                            </div>
+                        </div>
+
+                        <div style="background: #f4f6f8; padding: 10px; border-radius: 8px; font-size: 0.9rem;">
+                            <div style="margin-bottom: 6px; display:flex; justify-content:space-between;">
+                                <span><strong>Temp:</strong></span>
+                                <span>${cw.temperature}°C</span>
+                            </div>
+                            <div style="margin-bottom: 6px; display:flex; justify-content:space-between;">
+                                <span><strong>Condition:</strong></span>
+                                <span>${desc}</span>
+                            </div>
+                            <div style="font-size: 0.75rem; color: #999; margin-top: 8px; text-align: right;">
+                                Lat: ${lat.toFixed(2)}, Lon: ${lng.toFixed(2)}
+                            </div>
+                        </div>
+                    </div>
+                `);
+                } else {
+                    popup.setContent('<p>Weather data unavailable for this location.</p>');
+                }
+            } catch (err) {
+                console.error(err);
+                popup.setContent('<p style="color:red;">Error fetching data. Check internet connection.</p>');
+            }
+        });
+
+        // ---------------------------------------------------------
+        // END NEW FEATURE
+        // ---------------------------------------------------------
+
+        // Keep your Search Logic & Heatmap logic below this if you want to retain it
+        // (You can copy the searchControl and Heatmap fetch from your original file here)
+
+        // ---------------------------------------------------------
+        // NEW FEATURE: AI PREDICTION HEATMAP & EVACUATION
+        // ---------------------------------------------------------
+        let aiHeatLayer = null;
+        let aiRiskMarkers = [];
+        let aiHeatmapActive = false;
+
+        async function toggleAIHeatmap() {
+            if (aiHeatmapActive) {
+                if (aiHeatLayer) map.removeLayer(aiHeatLayer);
+                aiRiskMarkers.forEach(m => map.removeLayer(m));
+                aiRiskMarkers = [];
+                aiHeatmapActive = false;
+                document.getElementById('toggleHeatmapBtn').style.background = "linear-gradient(90deg, #6C2BF2, #4b1ba8)";
+                document.getElementById('toggleHeatmapBtn').innerText = "🤖 Toggle AI Prediction Heatmap";
+            } else {
+                try {
+                    const res = await fetch('http://localhost:8001/api/predictions');
+                    const data = await res.json();
+                    
+                    const heatPoints = data.zones.map(z => [z.lat, z.lng, z.risk_score / 100]);
+                    
+                    if (aiHeatLayer) map.removeLayer(aiHeatLayer);
+                    
+                    aiHeatLayer = L.heatLayer(heatPoints, {
+                        radius: 40,
+                        blur: 25,
+                        maxZoom: 18,
+                        minOpacity: 0.5,
+                        gradient: { 0.2: 'blue', 0.4: 'cyan', 0.6: 'lime', 0.8: 'yellow', 1.0: 'red' }
+                    }).addTo(map);
+
+                    // Add Glowing Risk Circles for high risk zones (>50)
+                    data.zones.forEach(zone => {
+                        if (zone.risk_score > 50) {
+                            const icon = L.divIcon({
+                                className: 'risk-circle-container',
+                                html: `
+                                    <div class="risk-circle" style="width: ${20 + (zone.risk_score/5)}px; height: ${20 + (zone.risk_score/5)}px; background: ${zone.risk_score > 80 ? 'rgba(255,0,0,0.4)' : 'rgba(255,165,0,0.4)'}; border-color: ${zone.risk_score > 80 ? '#FF0000' : '#FFA500'};"></div>
+                                    <div class="risk-label" style="position: absolute; top: -20px; left: 50%; transform: translateX(-50%);">
+                                        ${zone.risk_type}: ${zone.risk_score}%
+                                    </div>
+                                `,
+                                iconSize: [0, 0]
+                            });
+                            const marker = L.marker([zone.lat, zone.lng], { icon: icon }).addTo(map);
+                            marker.bindPopup(`
+                                <strong>AI Prediction</strong><br>
+                                Type: ${zone.risk_type}<br>
+                                Risk Score: ${zone.risk_score}%<br>
+                                Confidence: ${zone.confidence}%
+                            `);
+                            aiRiskMarkers.push(marker);
+                        }
+                    });
+                    
+                    aiHeatmapActive = true;
+                    document.getElementById('toggleHeatmapBtn').style.background = "#FF4444";
+                    document.getElementById('toggleHeatmapBtn').innerText = "🤖 Hide AI Predictions";
+                } catch (err) {
+                    console.error("Failed to load AI predictions", err);
+                    alert("Could not connect to AI Prediction API. Make sure the backend is running.");
+                }
+            }
+        }
+
+        let evacRouteLayer = null;
+        let pickingMode = null; // 'start' or 'end'
+        let pickMarkers = { start: null, end: null };
+
+        function startPicking(type) {
+            pickingMode = type;
+            document.getElementById('map').classList.add('picking-active');
+            document.getElementById('btnPickStart').classList.toggle('active', type === 'start');
+            document.getElementById('btnPickEnd').classList.toggle('active', type === 'end');
+        }
+
+        map.on('click', function(e) {
+            if (!pickingMode) return;
+            
+            const { lat, lng } = e.latlng;
+            const coordStr = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+            
+            if (pickingMode === 'start') {
+                document.getElementById('evacStart').value = coordStr;
+                if (pickMarkers.start) map.removeLayer(pickMarkers.start);
+                pickMarkers.start = L.marker(e.latlng, { icon: L.divIcon({ className: 'pick-marker', html: '📍', iconSize: [20, 20] }) }).addTo(map);
+            } else {
+                document.getElementById('evacEnd').value = coordStr;
+                if (pickMarkers.end) map.removeLayer(pickMarkers.end);
+                pickMarkers.end = L.marker(e.latlng, { icon: L.divIcon({ className: 'pick-marker', html: '🏁', iconSize: [20, 20] }) }).addTo(map);
+            }
+            
+            pickingMode = null;
+            document.getElementById('map').classList.remove('picking-active');
+            document.getElementById('btnPickStart').classList.remove('active');
+            document.getElementById('btnPickEnd').classList.remove('active');
+        });
+
+        function clearEvacRoute() {
+            if (evacRouteLayer) map.removeLayer(evacRouteLayer);
+            if (pickMarkers.start) map.removeLayer(pickMarkers.start);
+            if (pickMarkers.end) map.removeLayer(pickMarkers.end);
+            pickMarkers = { start: null, end: null };
+            document.getElementById('evacStart').value = '';
+            document.getElementById('evacEnd').value = '';
+            document.getElementById('evacResult').style.display = 'none';
+        }
+
+        async function generateEvacRoute() {
+            const startStr = document.getElementById('evacStart').value;
+            const endStr = document.getElementById('evacEnd').value;
+            
+            if (!startStr || !endStr) {
+                alert("Please select both Start and End points on the map.");
+                return;
+            }
+            
+            const startVal = startStr.split(',');
+            const endVal = endStr.split(',');
+            
+            const reqData = {
+                start_lat: parseFloat(startVal[0]),
+                start_lng: parseFloat(startVal[1]),
+                end_lat: parseFloat(endVal[0]),
+                end_lng: parseFloat(endVal[1])
+            };
+            
+            const btn = document.getElementById('genRouteBtn');
+            btn.innerText = "Analyzing Risks...";
+            btn.disabled = true;
+
+            try {
+                const res = await fetch(`${API_URL}/api/evacuation-route`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(reqData)
+                });
+
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const data = await res.json();
+
+                // Cache route in offline store
+                if (window.CTASOffline) {
+                    await CTASOffline.saveEvacRoute(reqData, data);
+                }
+                
+                renderEvacRouteOnMap(data, false, null);
+                
+            } catch (err) {
+                console.warn("[CTAS] Live route fetch failed, loading offline store...", err);
+                let cached = null;
+                if (window.CTASOffline) {
+                    cached = await CTASOffline.getLatestEvacRoute();
+                }
+
+                if (cached && cached.data) {
+                    if (window.CTASOffline) {
+                        CTASOffline.OfflineBanner.showOffline(cached.timestamp);
+                    }
+                    renderEvacRouteOnMap(cached.data, true, cached.timestamp);
+                } else {
+                    alert("Offline Mode: No cached route available for this location. Head safely inland to higher ground.");
+                }
+            } finally {
+                btn.innerText = "Analyze & Generate Route";
+                btn.disabled = false;
+            }
+        }
+
+        function renderEvacRouteOnMap(data, isOffline = false, timestamp = null) {
+            if (evacRouteLayer) map.removeLayer(evacRouteLayer);
+            
+            const routeColor = isOffline ? '#E2B714' : (data.risk_level === 'High' ? '#FF4444' : (data.risk_level === 'Moderate' ? '#FFAA00' : '#00CC66'));
+            
+            evacRouteLayer = L.polyline([], {
+                color: routeColor,
+                weight: 6,
+                opacity: 0.9,
+                dashArray: isOffline ? '8, 8' : '10, 10',
+                lineCap: 'round'
+            }).addTo(map);
+
+            if (isOffline) {
+                // Instantly show full route when offline
+                evacRouteLayer.setLatLngs(data.route);
+            } else {
+                // Animated Route Implementation
+                let i = 0;
+                const interval = setInterval(() => {
+                    if (i >= data.route.length) {
+                        clearInterval(interval);
+                        return;
+                    }
+                    evacRouteLayer.addLatLng(data.route[i]);
+                    i++;
+                }, 50);
+            }
+
+            if (data.route && data.route.length > 0) {
+                map.fitBounds(L.polyline(data.route).getBounds(), { padding: [50, 50] });
+            }
+            
+            document.getElementById('evacDist').innerText = data.distance;
+            document.getElementById('evacTime').innerText = data.estimated_time;
+            document.getElementById('evacRisk').innerText = isOffline ? `${data.risk_level} (Offline)` : data.risk_level;
+            
+            const statsCard = document.getElementById('statsCard');
+            statsCard.style.borderLeftColor = routeColor;
+            
+            const riskElem = document.getElementById('evacRisk');
+            riskElem.style.color = routeColor;
+
+            // Offline indicator inside stats card
+            let offlineBadge = document.getElementById('evacOfflineBadge');
+            if (isOffline) {
+                const timeStr = window.CTASOffline ? CTASOffline.formatTimestamp(timestamp) : 'previous session';
+                if (!offlineBadge) {
+                    offlineBadge = document.createElement('div');
+                    offlineBadge.id = 'evacOfflineBadge';
+                    offlineBadge.style.cssText = 'background: rgba(226,183,20,0.15); border: 1px solid #E2B714; color: #EDEAFB; padding: 6px 10px; border-radius: 6px; font-size: 0.76rem; margin-top: 10px; text-align: center;';
+                    statsCard.appendChild(offlineBadge);
+                }
+                offlineBadge.innerHTML = `⚡ <strong>Offline Route:</strong> Saved from ${timeStr}`;
+                offlineBadge.style.display = 'block';
+            } else if (offlineBadge) {
+                offlineBadge.style.display = 'none';
+            }
+            
+            document.getElementById('evacResult').style.display = "block";
+        }
+
+        // Emergency Helplines Modal Handlers
+        function openEmergencyContactsModal() {
+            const modal = document.getElementById('emergencyModal');
+            const list = document.getElementById('emergencyList');
+            if (!modal || !list) return;
+
+            const contacts = window.CTASOffline ? CTASOffline.getEmergencyContacts() : [];
+            list.innerHTML = contacts.map(c => `
+                <div style="background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.12); border-radius:10px; padding:12px; display:flex; justify-content:space-between; align-items:center;">
+                    <div>
+                        <div style="font-weight:600; font-size:0.95rem; color:#EDEAFB;">${c.agency}</div>
+                        <div style="font-size:0.75rem; color:#aaa;">${c.desc || ''}</div>
+                    </div>
+                    <a href="tel:${c.number.replace(/[^0-9]/g, '')}" style="background:#6C2BF2; color:white; padding:8px 14px; border-radius:6px; text-decoration:none; font-weight:600; font-size:0.88rem; display:inline-flex; align-items:center; gap:5px;">
+                        📞 ${c.number}
+                    </a>
+                </div>
+            `).join('');
+
+            modal.style.display = 'flex';
+        }
+
+        function closeEmergencyContactsModal() {
+            const modal = document.getElementById('emergencyModal');
+            if (modal) modal.style.display = 'none';
+        }
+
+        // Auto-restore last route if loaded offline
+        // --- COASTAL HOSPITALS & SHELTERS CAPACITY MAP LAYER ---
+        let facilityMarkers = [];
+        let facilitiesVisible = true;
+
+        async function loadAndRenderFacilities() {
+            try {
+                const res = await fetch(`${API_URL}/api/facilities/capacity`);
+                if (!res.ok) return;
+                const data = await res.json();
+
+                // Clear old markers if any
+                facilityMarkers.forEach(m => map.removeLayer(m));
+                facilityMarkers = [];
+
+                // Render Hospitals
+                if (data.hospitals) {
+                    data.hospitals.forEach(h => {
+                        const isFull = h.available_beds <= 0;
+                        const badgeColor = isFull ? '#FF4444' : (h.available_beds < 15 ? '#FFAA00' : '#00CC66');
+                        const icon = L.divIcon({
+                            className: 'facility-icon',
+                            html: `
+                                <div style="background:#130b20; border:2px solid ${badgeColor}; border-radius:50%; width:32px; height:32px; display:flex; align-items:center; justify-content:center; font-size:16px; box-shadow:0 0 10px ${badgeColor}; position:relative; cursor:pointer;">
+                                    🏥
+                                    <span style="position:absolute; top:-8px; right:-8px; background:${badgeColor}; color:${isFull?'white':'black'}; font-size:9px; font-weight:800; padding:1px 4px; border-radius:999px;">${h.available_beds}</span>
+                                </div>
+                            `,
+                            iconSize: [32, 32]
+                        });
+                        const marker = L.marker([h.latitude, h.longitude], { icon }).addTo(map);
+                        marker.bindPopup(`
+                            <div style="min-width:220px; font-family:'Inter', sans-serif; color:#EDEAFB;">
+                                <div style="background:#6C2BF2; color:white; padding:8px 10px; border-radius:6px 6px 0 0; margin:-1px -1px 8px -1px;">
+                                    <strong style="font-size:0.95rem;">${h.name}</strong>
+                                    <div style="font-size:0.75rem; color:#EDEAFB; opacity:0.85;">${h.zone}</div>
+                                </div>
+                                <div style="font-size:0.85rem; line-height:1.5; color:#333; margin-bottom:10px;">
+                                    <div><strong>Available Beds:</strong> <span style="color:${badgeColor}; font-weight:700;">${h.available_beds} / ${h.total_beds}</span></div>
+                                    <div><strong>ICU Open:</strong> ${h.available_icu_beds} / ${h.icu_beds_total}</div>
+                                    <div><strong>Oxygen Status:</strong> ${h.oxygen_status}</div>
+                                    <div><strong>Emergency Line:</strong> <a href="tel:${h.contact_number}">${h.contact_number}</a></div>
+                                </div>
+                                <button onclick="routeToFacility(${h.latitude}, ${h.longitude}, '${h.name.replace(/'/g, "\\'")}')" style="width:100%; background:#6C2BF2; color:white; border:none; padding:8px; border-radius:6px; font-weight:600; font-size:0.8rem; cursor:pointer;">
+                                    🧭 Route Evacuation Here
+                                </button>
+                            </div>
+                        `);
+                        facilityMarkers.push(marker);
+                    });
+                }
+
+                // Render Shelters
+                if (data.shelters) {
+                    data.shelters.forEach(s => {
+                        const isFull = s.available_capacity <= 0;
+                        const badgeColor = isFull ? '#FF4444' : (s.available_capacity < 50 ? '#FFAA00' : '#00CC66');
+                        const icon = L.divIcon({
+                            className: 'facility-icon',
+                            html: `
+                                <div style="background:#130b20; border:2px solid ${badgeColor}; border-radius:50%; width:32px; height:32px; display:flex; align-items:center; justify-content:center; font-size:16px; box-shadow:0 0 10px ${badgeColor}; position:relative; cursor:pointer;">
+                                    🏕️
+                                    <span style="position:absolute; top:-8px; right:-8px; background:${badgeColor}; color:${isFull?'white':'black'}; font-size:9px; font-weight:800; padding:1px 4px; border-radius:999px;">${s.available_capacity}</span>
+                                </div>
+                            `,
+                            iconSize: [32, 32]
+                        });
+                        const marker = L.marker([s.latitude, s.longitude], { icon }).addTo(map);
+                        marker.bindPopup(`
+                            <div style="min-width:220px; font-family:'Inter', sans-serif; color:#EDEAFB;">
+                                <div style="background:#009944; color:white; padding:8px 10px; border-radius:6px 6px 0 0; margin:-1px -1px 8px -1px;">
+                                    <strong style="font-size:0.95rem;">${s.name}</strong>
+                                    <div style="font-size:0.75rem; color:#EDEAFB; opacity:0.85;">${s.zone}</div>
+                                </div>
+                                <div style="font-size:0.85rem; line-height:1.5; color:#333; margin-bottom:10px;">
+                                    <div><strong>Available Capacity:</strong> <span style="color:${badgeColor}; font-weight:700;">${s.available_capacity} / ${s.total_capacity}</span></div>
+                                    <div><strong>Food Status:</strong> ${s.food_status}</div>
+                                    <div><strong>Water Supply:</strong> ${s.water_status}</div>
+                                    <div><strong>Helpline:</strong> <a href="tel:${s.contact_number}">${s.contact_number}</a></div>
+                                </div>
+                                <button onclick="routeToFacility(${s.latitude}, ${s.longitude}, '${s.name.replace(/'/g, "\\'")}')" style="width:100%; background:#009944; color:white; border:none; padding:8px; border-radius:6px; font-weight:600; font-size:0.8rem; cursor:pointer;">
+                                    🧭 Route Evacuation Here
+                                </button>
+                            </div>
+                        `);
+                        facilityMarkers.push(marker);
+                    });
+                }
+            } catch (e) {
+                console.warn("Could not load facility capacity markers", e);
+            }
+        }
+
+        function toggleFacilitiesLayer() {
+            const btn = document.getElementById('toggleFacilitiesBtn');
+            if (facilitiesVisible) {
+                facilityMarkers.forEach(m => map.removeLayer(m));
+                facilitiesVisible = false;
+                if (btn) {
+                    btn.style.background = "#555";
+                    btn.innerText = "🏥 Show Hospitals & Shelters";
+                }
+            } else {
+                facilityMarkers.forEach(m => m.addTo(map));
+                facilitiesVisible = true;
+                if (btn) {
+                    btn.style.background = "linear-gradient(90deg, #00CC66, #009944)";
+                    btn.innerText = "🏥 Hide Hospitals & Shelters";
+                }
+            }
+        }
+
+        function routeToFacility(lat, lng, name) {
+            document.getElementById('evacEnd').value = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+            if (pickMarkers.end) map.removeLayer(pickMarkers.end);
+            pickMarkers.end = L.marker([lat, lng], { icon: L.divIcon({ className: 'pick-marker', html: '🏁', iconSize: [20, 20] }) }).addTo(map);
+
+            if (!document.getElementById('evacStart').value) {
+                if (navigator.geolocation) {
+                    navigator.geolocation.getCurrentPosition(pos => {
+                        const sLat = pos.coords.latitude;
+                        const sLng = pos.coords.longitude;
+                        document.getElementById('evacStart').value = `${sLat.toFixed(4)}, ${sLng.toFixed(4)}`;
+                        if (pickMarkers.start) map.removeLayer(pickMarkers.start);
+                        pickMarkers.start = L.marker([sLat, sLng], { icon: L.divIcon({ className: 'pick-marker', html: '📍', iconSize: [20, 20] }) }).addTo(map);
+                        generateEvacRoute();
+                    }, () => {
+                        document.getElementById('evacStart').value = `15.5439, 73.7553`;
+                        generateEvacRoute();
+                    });
+                } else {
+                    document.getElementById('evacStart').value = `15.5439, 73.7553`;
+                    generateEvacRoute();
+                }
+            } else {
+                generateEvacRoute();
+            }
+        }
+
+        window.addEventListener('DOMContentLoaded', async () => {
+            loadAndRenderFacilities();
+
+            if (!navigator.onLine && window.CTASOffline) {
+                const cached = await CTASOffline.getLatestEvacRoute();
+                if (cached && cached.data) {
+                    console.log("[CTAS Offline] Restoring last cached evacuation route on map");
+                    renderEvacRouteOnMap(cached.data, true, cached.timestamp);
+                    if (cached.params) {
+                        document.getElementById('evacStart').value = `${cached.params.start_lat}, ${cached.params.start_lng}`;
+                        document.getElementById('evacEnd').value = `${cached.params.end_lat}, ${cached.params.end_lng}`;
+                    }
+                }
+            }
+        });
+    </script>
+
+    <!-- Dangerous Weather Popup -->
+    <div id="danger-popup">
+        <div class="danger-content">
+            <div class="danger-icon">⚠️</div>
+            <h2>DANGER WARNING</h2>
+            <p id="danger-message">Extreme conditions detected in this area.</p>
+            <div class="danger-stat">
+                <span>Wind Speed</span>
+                <strong id="danger-wind">0 km/h</strong>
+            </div>
+            <button onclick="closeDangerPopup()">Dismiss</button>
+        </div>
+    </div>
+
+    <style>
+        #danger-popup {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100vh;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(8px);
+            z-index: 9999;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .danger-content {
+            background: rgba(40, 10, 10, 0.95);
+            border: 2px solid #FF4444;
+            padding: 40px;
+            border-radius: 20px;
+            text-align: center;
+            color: #fff;
+            box-shadow: 0 0 50px rgba(255, 68, 68, 0.4);
+            max-width: 400px;
+            animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Animated scan line */
+        .danger-content::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 4px;
+            background: #FF4444;
+            animation: scan 2s linear infinite;
+            opacity: 0.5;
+        }
+
+        @keyframes scan {
+            0% {
+                top: 0;
+                opacity: 0;
+            }
+
+            50% {
+                opacity: 1;
+            }
+
+            100% {
+                top: 100%;
+                opacity: 0;
+            }
+        }
+
+        .danger-icon {
+            font-size: 4rem;
+            margin-bottom: 20px;
+            animation: shake 0.5s infinite;
+        }
+
+        @keyframes shake {
+
+            0%,
+            100% {
+                transform: rotate(0deg);
+            }
+
+            25% {
+                transform: rotate(-10deg);
+            }
+
+            75% {
+                transform: rotate(10deg);
+            }
+        }
+
+        #danger-popup h2 {
+            font-family: 'Playfair Display', serif;
+            /* Matching landing page font */
+            color: #FF4444;
+            margin: 0 0 10px;
+            font-size: 2rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        #danger-popup p {
+            color: #eee;
+            margin-bottom: 25px;
+            font-size: 1.1rem;
+        }
+
+        .danger-stat {
+            background: rgba(255, 68, 68, 0.1);
+            border: 1px solid rgba(255, 68, 68, 0.3);
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 25px;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .danger-stat strong {
+            font-size: 1.5rem;
+            color: #FF4444;
+        }
+
+        #danger-popup button {
+            background: #FF4444;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 50px;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        #danger-popup button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 20px rgba(255, 68, 68, 0.6);
+        }
+
+        @keyframes popIn {
+            from {
+                transform: scale(0.8);
+                opacity: 0;
+            }
+
+            to {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
+        }
+    </style>
+
+</body>
+
+</html>

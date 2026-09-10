@@ -1,0 +1,750 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CTAS — Community Sentinel Posts</title>
+
+  <!-- PWA Manifest & Meta Tags -->
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="theme-color" content="#6C2BF2" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="CTAS" />
+  <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+  <link rel="icon" type="image/svg+xml" href="/icons/icon.svg" />
+  <script src="/offline-store.js"></script>
+  <script src="/frontend/i18n/i18n.js"></script>
+
+  <!-- Fonts + Icons  -->
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Playfair+Display:wght@600;700&display=swap"
+    rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.0.3/src/css/icons.css">
+
+  <style>
+    /* Color System (5 total):
+       1) brand purple        #6C2BF2
+       2) deep purple bg      #0D0716
+       3) off-white text      #EDEAFB
+       4) muted text (rgba)   rgba(237, 234, 251, 0.72)
+       5) gold accent         #E2B714
+    */
+    :root {
+      --brand-purple: #6C2BF2;
+      --deep-purple: #0D0716;
+      --text: #EDEAFB;
+      --text-muted: rgba(237, 234, 251, 0.72);
+      --accent-gold: #E2B714;
+
+      --glass-bg: rgba(255, 255, 255, 0.06);
+      --glass-border: rgba(255, 255, 255, 0.14);
+      --shadow-strong: 0 20px 60px rgba(0, 0, 0, .6);
+      --shadow-soft: 0 10px 30px rgba(0, 0, 0, .35);
+    }
+
+    /* Base */
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+      background:
+        radial-gradient(1200px 600px at 20% 10%, rgba(108, 43, 242, .18) 0%, transparent 60%),
+        radial-gradient(1000px 600px at 80% 0%, rgba(226, 183, 20, .08) 0%, transparent 55%),
+        var(--deep-purple);
+      color: var(--text);
+      font-family: 'Inter', system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+      line-height: 1.6;
+      overflow-x: hidden;
+      background-attachment: fixed;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 20px;
+    }
+
+    h1,
+    h2,
+    h3,
+    h4 {
+      font-family: 'Playfair Display', serif;
+      letter-spacing: .2px;
+    }
+
+    p {
+      color: var(--text-muted);
+    }
+
+    /* Posts layout (no modal) */
+    .page-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 24px 0 10px;
+      border-bottom: 1px solid rgba(255, 255, 255, .06);
+      margin-bottom: 16px;
+    }
+
+    .sheet-title {
+      font-size: 1.6rem;
+      margin: 0;
+    }
+
+    .posts-wrap {
+      padding: 8px 0 32px;
+    }
+
+    /* Original modal-sheet styles repurposed for inline layout */
+    .posts-sheet {
+      width: 100%;
+      max-width: 1100px;
+      margin: 0 auto;
+      background: var(--glass-bg);
+      border: 1px solid var(--glass-border);
+      backdrop-filter: blur(18px);
+      border-radius: 18px;
+      padding: 22px;
+      box-shadow: var(--shadow-strong);
+      display: grid;
+      grid-template-columns: 420px 1fr;
+      gap: 20px;
+      overflow: hidden;
+    }
+
+    @media (max-width: 980px) {
+      .posts-sheet {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Left column: form */
+    .form-card {
+      background: rgba(255, 255, 255, .04);
+      border: 1px solid var(--glass-border);
+      border-radius: 14px;
+      padding: 16px;
+      overflow: auto;
+    }
+
+    .input-group {
+      margin-bottom: 14px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 6px;
+      opacity: .95;
+      font-size: .95rem;
+    }
+
+    input[type="text"],
+    input[type="file"],
+    textarea {
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid var(--glass-border);
+      background: rgba(255, 255, 255, .04);
+      color: var(--text);
+      font-family: inherit;
+      font-size: 1rem;
+      transition: border-color .25s ease, box-shadow .25s ease;
+    }
+
+    textarea {
+      min-height: 100px;
+      resize: vertical;
+    }
+
+    input:focus,
+    textarea:focus {
+      outline: none;
+      border-color: var(--brand-purple);
+      box-shadow: 0 0 0 3px rgba(108, 43, 242, .28);
+    }
+
+    .preview {
+      margin-top: 10px;
+      display: none;
+      position: relative;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, .08);
+    }
+
+    .preview img {
+      width: 100%;
+      height: 260px;
+      object-fit: cover;
+      display: block;
+    }
+
+    .preview .location-badge {
+      position: absolute;
+      top: 8px;
+      left: 8px;
+      background: rgba(13, 7, 22, .65);
+      border: 1px solid rgba(255, 255, 255, .18);
+      color: var(--text);
+      font-size: .85rem;
+      padding: 6px 10px;
+      border-radius: 999px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .form-actions {
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+      margin-top: 10px;
+    }
+
+    /* Right column: tabs + lists */
+    .right-col {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .tab {
+      padding: 8px 12px;
+      border-radius: 999px;
+      cursor: pointer;
+      user-select: none;
+      border: 1px solid rgba(255, 255, 255, .12);
+      background: rgba(255, 255, 255, .03);
+      color: var(--text);
+      transition: border-color .25s ease, background .25s ease;
+      font-size: .95rem;
+    }
+
+    .tab.active {
+      border-color: var(--brand-purple);
+      background: rgba(108, 43, 242, .12);
+    }
+
+    .feed {
+      flex: 1;
+      overflow: auto;
+      padding-right: 2px;
+    }
+
+    /* Post card */
+    .post {
+      background: rgba(255, 255, 255, .04);
+      border: 1px solid rgba(255, 255, 255, .12);
+      border-radius: 16px;
+      padding: 12px;
+      margin-bottom: 14px;
+    }
+
+    .post .topline {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+
+    .loc-chip {
+      background: rgba(13, 7, 22, .65);
+      border: 1px solid rgba(255, 255, 255, .18);
+      padding: 6px 10px;
+      border-radius: 999px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: .9rem;
+    }
+
+    .post .img-wrap {
+      position: relative;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, .08);
+    }
+
+    .post .img-wrap img {
+      width: 100%;
+      height: 280px;
+      object-fit: cover;
+      display: block;
+    }
+
+    .post h4 {
+      margin: 10px 4px 6px;
+    }
+
+    .meta {
+      color: var(--text-muted);
+      font-size: .9rem;
+      margin: 0 4px 8px;
+    }
+
+    .actions-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 8px 4px;
+    }
+
+    .like-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-radius: 10px;
+      cursor: pointer;
+      border: 1px solid rgba(255, 255, 255, .12);
+      background: rgba(255, 255, 255, .03);
+      color: var(--text);
+      transition: transform .18s ease, border-color .25s ease, background .25s ease;
+    }
+
+    .like-btn:hover {
+      transform: translateY(-1px);
+      border-color: var(--brand-purple);
+      background: rgba(108, 43, 242, .1);
+    }
+
+    .like-btn.liked {
+      border-color: rgba(226, 183, 20, .5);
+      background: rgba(226, 183, 20, .12);
+    }
+
+    .counts {
+      color: var(--text-muted);
+      font-size: .95rem;
+    }
+
+    .comments {
+      margin-top: 8px;
+      padding-top: 10px;
+      border-top: 1px solid rgba(255, 255, 255, .08);
+    }
+
+    .comment {
+      padding: 8px 6px;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, .03);
+      border: 1px solid rgba(255, 255, 255, .06);
+      margin-bottom: 8px;
+    }
+
+    .comment small {
+      color: rgba(237, 234, 251, .6);
+    }
+
+    .add-comment {
+      display: flex;
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    .add-comment input {
+      flex: 1;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid var(--glass-border);
+      background: rgba(255, 255, 255, .04);
+      color: var(--text);
+    }
+
+    .add-comment button {
+      white-space: nowrap;
+    }
+
+    /* AI Trust Badge Styles */
+    .trust-badge {
+      font-size: 0.75rem;
+      padding: 4px 10px;
+      border-radius: 999px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+    .trust-Trusted { background: rgba(0, 204, 102, 0.15); color: #00CC66; border: 1px solid rgba(0, 204, 102, 0.3); }
+    .trust-Suspicious { background: rgba(255, 170, 0, 0.15); color: #FFAA00; border: 1px solid rgba(255, 170, 0, 0.3); }
+    .trust-Critical { background: rgba(255, 68, 68, 0.15); color: #FF4444; border: 1px solid rgba(255, 68, 68, 0.3); }
+
+    /* Tooltip simulation for score */
+    .trust-wrapper {
+        position: relative;
+        display: inline-block;
+    }
+    .trust-wrapper:hover::after {
+        content: attr(data-tooltip);
+        position: absolute;
+        bottom: 100%;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(0,0,0,0.8);
+        color: white;
+        padding: 5px 10px;
+        border-radius: 6px;
+        font-size: 0.7rem;
+        white-space: nowrap;
+        margin-bottom: 5px;
+        z-index: 10;
+        border: 1px solid rgba(255,255,255,0.1);
+    }
+
+    /* Utility */
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+  </style>
+</head>
+
+<body>
+  <main>
+    <div class="container">
+      <div class="page-head">
+        <h3 class="sheet-title" data-i18n="posts.title">Community Sentinel Posts</h3>
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <a href="frontend.html" class="btn" style="text-decoration:none; padding: 6px 14px; font-size:0.85rem; border:1px solid rgba(255,255,255,0.2); border-radius:999px; color:inherit;" data-i18n="map.back_home">← Back to Home</a>
+          <div id="ctas-language-selector"></div>
+        </div>
+      </div>
+
+      <section class="posts-wrap" aria-label="Community Sentinel Posts">
+        <div class="posts-sheet" role="document">
+          <!-- Left: Create form  -->
+          <aside class="form-card" aria-label="Create a new post">
+            <div class="input-group">
+              <label for="post-location" data-i18n="posts.loc_label">Location (where you noticed this)</label>
+              <input type="text" id="post-location" data-i18n-placeholder="posts.loc_placeholder" placeholder="e.g., Mandrem Beach, North Goa" />
+            </div>
+
+            <div class="input-group">
+              <label for="post-image" data-i18n="posts.img_label">Upload Image</label>
+              <input type="file" id="post-image" accept="image/*" />
+              <div id="preview" class="preview" aria-live="polite">
+                <span class="location-badge"><i class="ph-bold ph-map-pin"></i><span
+                    id="preview-loc">Location</span></span>
+                <img id="preview-img" alt="Selected image preview" />
+              </div>
+            </div>
+
+            <div class="input-group">
+              <label for="post-caption" data-i18n="posts.caption_label">Caption</label>
+              <input type="text" id="post-caption" data-i18n-placeholder="posts.caption_placeholder" placeholder="Short, descriptive title" />
+            </div>
+
+            <div class="input-group">
+              <label for="post-desc" data-i18n="posts.desc_label">Description</label>
+              <textarea id="post-desc" data-i18n-placeholder="posts.desc_placeholder" placeholder="Describe what you observed..."></textarea>
+            </div>
+
+            <div class="form-actions">
+              <button id="reset-form" class="btn" type="button"><i
+                  class="ph-bold ph-arrow-counter-clockwise"></i>&nbsp;<span data-i18n="posts.reset_btn">Reset</span></button>
+              <button id="submit-post" class="btn gold" type="button"><i
+                  class="ph-bold ph-paper-plane-tilt"></i>&nbsp;<span data-i18n="posts.post_btn">Post</span></button>
+            </div>
+          </aside>
+
+          <!-- Right: Tabs + Feed  -->
+          <section class="right-col">
+            <div class="tabs" role="tablist" aria-label="Post views">
+              <button class="tab active" role="tab" aria-selected="true" aria-controls="feed-all"
+                id="tab-all" data-i18n="posts.tab_all">Feed</button>
+              <button class="tab" role="tab" aria-selected="false" aria-controls="feed-mine" id="tab-mine" data-i18n="posts.tab_trending">My
+                Posts</button>
+            </div>
+
+            <div id="feed-all" class="feed" role="tabpanel" aria-labelledby="tab-all"></div>
+            <div id="feed-mine" class="feed" role="tabpanel" aria-labelledby="tab-mine" hidden></div>
+          </section>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <script>
+
+    // State
+    const API_URL = 'http://localhost:8001';
+    let posts = [];
+
+    // Auth Check
+    // Auth Check & Session Sync
+    let user_id = localStorage.getItem('user_id');
+    const token = localStorage.getItem('token');
+
+    async function verifySession() {
+      if (user_id && token) {
+        try {
+          const res = await fetch(`${API_URL}/auth/me?user_id=${user_id}`);
+          if (res.ok) {
+            const userData = await res.json();
+            localStorage.setItem('user_name', userData.name);
+            localStorage.setItem('role', userData.role);
+            // Update current scope user_id if needed, though usually id doesn't change
+            // user_id = userData.id; 
+          } else {
+            // If session invalid, maybe logout? For now just warn.
+            console.warn("Session invalid");
+          }
+        } catch (e) {
+          console.warn("Session sync failed");
+        }
+      } else {
+        alert("Please login first!");
+        window.location.href = "frontend.html";
+      }
+    }
+
+    // Run verification immediately
+    verifySession();
+
+    const loadPosts = async () => {
+      try {
+        const res = await fetch(`${API_URL}/posts`);
+        posts = await res.json();
+      }
+      catch (e) { console.error("Error loading posts", e); posts = []; }
+    };
+
+    // DOM refs
+    const inputLocation = document.getElementById('post-location');
+    const inputImage = document.getElementById('post-image');
+    const inputCaption = document.getElementById('post-caption');
+    const inputDesc = document.getElementById('post-desc');
+    const preview = document.getElementById('preview');
+    const previewImg = document.getElementById('preview-img');
+    const previewLoc = document.getElementById('preview-loc');
+
+    const btnSubmit = document.getElementById('submit-post');
+    const btnReset = document.getElementById('reset-form');
+
+    const tabAll = document.getElementById('tab-all');
+    const tabMine = document.getElementById('tab-mine');
+    const feedAll = document.getElementById('feed-all');
+    const feedMine = document.getElementById('feed-mine');
+
+    // Image preview
+    inputImage.addEventListener('change', (e) => {
+      const file = e.target.files?.[0];
+      if (!file) { preview.style.display = 'none'; previewImg.src = ''; return; }
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        previewImg.src = ev.target.result;
+        preview.style.display = 'block';
+      };
+      reader.readAsDataURL(file);
+    });
+    inputLocation.addEventListener('input', () => {
+      previewLoc.textContent = inputLocation.value || 'Location';
+    });
+
+    // Tabs
+    function activateTab(which) {
+      const all = which === 'all';
+      tabAll.classList.toggle('active', all);
+      tabMine.classList.toggle('active', !all);
+      tabAll.setAttribute('aria-selected', all ? 'true' : 'false');
+      tabMine.setAttribute('aria-selected', !all ? 'true' : 'false');
+      feedAll.hidden = !all; feedMine.hidden = all;
+    }
+    tabAll.addEventListener('click', () => activateTab('all'));
+    tabMine.addEventListener('click', () => activateTab('mine'));
+
+    // Helpers
+    const nowISO = () => new Date().toISOString();
+
+    function renderFeeds() {
+      const sorted = posts; // Server already sorts by date desc
+      feedAll.innerHTML = sorted.map(p => postHTML(p)).join('') || emptyHTML('No posts yet.');
+
+      // Filter for 'mine' using the logged in user_id
+      const mine = sorted.filter(p => String(p.owner_id) === String(user_id));
+      feedMine.innerHTML = mine.map(p => postHTML(p)).join('') || emptyHTML('You have not posted yet.');
+
+      wirePostInteractions();
+    }
+
+    function emptyHTML(copy) {
+      return '<div style="opacity:.8; padding:18px; border:1px dashed rgba(255,255,255,.18); border-radius:14px; text-align:center;">' + copy + '</div>';
+    }
+    function esc(s) { return String(s || '').replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m])); }
+
+    function postHTML(p) {
+      const comments = p.comments || [];
+      const likedByMe = false; // Simplified for now since we don't track who liked what in this simple backend
+
+      // AI Trust Logic
+      const trust = p.ai_verification || { trust_level: 'Trusted', score: 100 };
+      const trustShort = trust.trust_level.split(' ')[0]; // Handle "Critical Review" -> "Critical"
+      const trustIcon = trustShort === 'Trusted' ? 'ph-check-circle' : (trustShort === 'Suspicious' ? 'ph-warning' : 'ph-shield-warning');
+
+      return `
+        <article class="post" data-id="${p.id}" style="border-top: 3px solid ${trustShort === 'Trusted' ? 'transparent' : (trustShort === 'Suspicious' ? '#FFAA00' : '#FF4444')}">
+          <div class="topline">
+            <span class="loc-chip"><i class="ph-bold ph-map-pin"></i>${esc(p.location)}</span>
+            <div class="trust-wrapper" data-tooltip="AI Authenticity Score: ${trust.score}%">
+                <span class="trust-badge trust-${trustShort}">
+                    <i class="ph-bold ${trustIcon}"></i> ${trust.trust_level}
+                </span>
+            </div>
+          </div>
+          <div class="img-wrap">
+            <img src="${esc(p.imageData)}" alt="${esc(p.caption)}"/>
+          </div>
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px;">
+            <h4 style="margin:0;">${esc(p.caption)}</h4>
+            <small class="meta" style="margin:0;">by ${esc(p.owner)}</small>
+          </div>
+          <p class="meta" style="margin:8px 4px;">${esc(p.description)}</p>
+          <div style="font-size:0.75rem; color:rgba(255,255,255,0.4); margin:0 4px 8px;">
+            <i class="ph-bold ph-clock"></i> ${new Date(p.createdAt).toLocaleString()}
+          </div>
+          
+          <div class="actions-row">
+            <button class="like-btn" aria-label="React to this post">
+              <i class="ph-bold ph-heart"></i>
+              <span class="counts"><strong class="like-count">${p.likes || 0}</strong> likes</span>
+            </button>
+            <span class="counts"><strong class="comment-count">${comments.length}</strong> comments</span>
+          </div>
+          
+          <div class="comments">
+            ${comments.map(c => `
+              <div class="comment">
+                <div>${esc(c.text)}</div>
+                <small>${new Date(c.at).toLocaleString()}</small>
+              </div>
+            `).join('')}
+            
+            <form class="add-comment" autocomplete="off">
+              <label class="sr-only" for="c-${p.id}">Add a comment</label>
+              <input id="c-${p.id}" type="text" placeholder="Add your comment..." />
+              <button class="btn" type="submit">Comment</button>
+            </form>
+          </div>
+        </article>
+      `;
+    }
+
+    function wirePostInteractions() {
+      document.querySelectorAll('.post').forEach($post => {
+        const id = $post.getAttribute('data-id');
+        const likeBtn = $post.querySelector('.like-btn');
+        const countSpan = $post.querySelector('.like-count');
+        const form = $post.querySelector('.add-comment');
+
+        likeBtn.addEventListener('click', async () => {
+          try {
+            const res = await fetch(`${API_URL}/posts/${id}/like`, { method: 'POST' });
+            const data = await res.json();
+            countSpan.textContent = data.likes;
+          } catch (e) { console.error(e); }
+        });
+
+        form.addEventListener('submit', async (e) => {
+          e.preventDefault();
+          const input = form.querySelector('input');
+          const text = (input.value || '').trim();
+          if (!text) return;
+
+          try {
+            await fetch(`${API_URL}/posts/${id}/comment`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ user_id: parseInt(user_id), text })
+            });
+            // Reload posts to show new comment
+            await loadPosts();
+            renderFeeds();
+          } catch (e) { console.error(e); }
+        });
+      });
+    }
+
+    // Submit post
+    btnSubmit.addEventListener('click', async () => {
+      const location = (inputLocation.value || '').trim();
+      const caption = (inputCaption.value || '').trim();
+      const description = (inputDesc.value || '').trim();
+      const file = inputImage.files?.[0];
+
+      if (!location || !file || !caption) { alert('Fill required fields!'); return; }
+      if (!user_id) { alert('Login required'); return; }
+
+      const image_data = await fileToDataUrl(file);
+      const payload = {
+        user_id: parseInt(user_id),
+        location, caption, description, image_data
+      };
+
+      try {
+        const res = await fetch(`${API_URL}/posts`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        if (!res.ok) throw new Error("Post failed");
+
+        alert("Posted successfully!");
+        resetForm();
+        await loadPosts();
+        renderFeeds();
+        activateTab('mine');
+
+      } catch (e) {
+        alert('Failed to post. Check connection.');
+        console.error(e);
+      }
+    });
+
+    btnReset.addEventListener('click', resetForm);
+    function resetForm() {
+      inputLocation.value = '';
+      inputCaption.value = '';
+      inputDesc.value = '';
+      inputImage.value = '';
+      preview.style.display = 'none';
+      previewImg.src = '';
+      previewLoc.textContent = 'Location';
+    }
+
+    function fileToDataUrl(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = e => resolve(e.target.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    }
+
+    // Init
+    (async () => {
+      await loadPosts();
+      renderFeeds();
+    })();
+  </script>
+</body>
+
+</html>
