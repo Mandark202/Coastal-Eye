@@ -27,7 +27,6 @@ The **Coastal Threat Alert System (CTAS)** is a full-stack web application that 
 | 🤝 **AI Copilot** | Integrated AI assistant to help users and authorities with threat assessment and response planning |
 | 🔐 **Auth System** | JWT-based user authentication with role-based access (user / authority) |
 
----
 
 ## 🏗️ Project Structure
 
@@ -194,7 +193,6 @@ Simulates real-time alerts from multiple data sources (Sentinel-1 Satellite, Coa
 | `ResourceCenter` | Emergency resource depot (ambulances, food, boats) |
 | `ResourceAllocation` | Dispatched resource record linked to aid request |
 
----
 
 ## 🌐 API Endpoints (Summary)
 
@@ -214,8 +212,6 @@ Simulates real-time alerts from multiple data sources (Sentinel-1 Satellite, Coa
 
 Full interactive API docs available at: http://127.0.0.1:8001/docs
 
----
-
 ## 👥 User Roles
 
 | Role | Capabilities |
@@ -223,7 +219,7 @@ Full interactive API docs available at: http://127.0.0.1:8001/docs
 | **User (Citizen)** | Submit posts, request aid, use Voice SOS, view alerts and map |
 | **Authority (Official)** | All citizen features + manage aid requests, allocate resources, view authority dashboard |
 
----
+
 
 ## 🌍 Targeted Threat Zones
 
@@ -236,7 +232,6 @@ The system currently monitors the following Indian coastal regions:
 - Gujarat Coast / Surat — River Surge / Flood
 - Andaman Islands — Tropical Storm
 
----
 
 ## 📦 Dependencies
 
@@ -249,13 +244,9 @@ requests
 openai
 ```
 
----
-
 ## 🏆 Built For
 
 **HackGenesis Hackathon** — Protecting coastlines through AI, community, and technology.
-
----
 
 ## 📄 License
 
